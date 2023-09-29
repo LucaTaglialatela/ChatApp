@@ -44,10 +44,11 @@ void readFromStdin(SOCKET sock) {
         
         if (msg == "!quit") {
             std::cout << "Shutting down." << std::endl;
+            sock_close(sock);
             return;
         }
 
-        const char *sendbuf = msg.c_str();
+        const char *sendbuf = msg.c_str() + '\0';
         size_t sendbuflen { strlen(sendbuf) };
         status = send(sock, sendbuf, sendbuflen, 0);
         if (status == SOCKET_ERROR) {

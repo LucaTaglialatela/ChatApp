@@ -10,107 +10,6 @@
 #define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT "3490"
 
-// class Application {
-// private:
-//     bool stop = false;
-
-//     virtual void tick() = 0;
-
-// public:
-//     virtual ~Application() = default;
-
-//     virtual void setup() = 0;
-
-//     void run() {
-//         while (!this->stop) {
-//             this->tick();
-//         }
-//     };
-
-//     void stopApplication() {
-//         this->stop = true;
-//     };
-
-//     bool isStopped() {
-//         return this->stop;
-//     };
-// };
-
-// class Client : public Application {
-// private:
-//     /**
-//      * You are free to add new member variables and methods here if needed.
-//      * Please do not remove the ones that are already here.
-//      */
-//     SOCKET sock;
-//     std::thread socketThread, stdinThread;
-//     // CircularLineBuffer socketBuffer, stdinBuffer;
-
-//     void tick() override;
-
-//     int readFromStdin();
-
-//     int readFromSocket();
-
-//     inline void threadReadFromStdin() {
-//         while (!isStopped()) {
-//             auto res = readFromStdin();
-//             if (res < 0) {
-//                 stopApplication();
-//             }
-//         }
-//     }
-
-//     inline void threadReadFromSocket() {
-//         while (!isStopped()) {
-//             auto res = readFromSocket();
-//             if (res < 0) {
-//                 stopApplication();
-//             }
-//         }
-//     }
-
-//     void createSocketAndLogIn();
-
-//     // void closeSocket() {
-//     //     shutdown(sock, 2);
-//     //     sock_quit();
-//     // }
-
-//     inline void startThreads() {
-//         socketThread = std::thread(&Client::threadReadFromSocket, this);
-//         stdinThread = std::thread(&Client::threadReadFromStdin, this);
-//     }
-
-//     inline void stopThreads() {
-//         this->stopApplication();
-//         socketThread.join();
-//         stdinThread.join();
-//     }
-
-// public:
-//     inline ~Client() override {
-//         // closeSocket();
-//         shutdown(sock, 2);
-//         sock_quit();
-//         stopThreads();
-//     }
-
-//     /**
-//      * Assignment 1
-//      *
-//      * See the lab manual for the assignment description.
-//      */
-//     inline void setup() override {
-//         createSocketAndLogIn();
-//         startThreads();
-//     }
-// };
-
-// int readFromSocket(SOCKET sock) {};
-
-// int readFromStdin(SOCKET sock) {};
-
 int main(int nargs, char **argv) {
     struct addrinfo hints, *res;
     const char *IP {"127.0.0.1"};
@@ -148,7 +47,6 @@ int main(int nargs, char **argv) {
 
     // Connect socket to server
     status = connect(sock, res->ai_addr, (int)res->ai_addrlen);
-    std::cerr << WSAGetLastError() << std::endl;
     if (status == SOCKET_ERROR) {
         std::cerr << "connect failed: " << WSAGetLastError() << std::endl;
         sock_close(sock);
@@ -164,7 +62,7 @@ int main(int nargs, char **argv) {
     std::string userName;
     std::cin >> userName;
     
-    std::string loginFormat = "HELLO-FROM " + userName + "\n";
+    std::string loginFormat = "!login " + userName;
 
     // Try to log into server using chosen username
     // TODO: avoid duplicate usernames
@@ -200,8 +98,6 @@ int main(int nargs, char **argv) {
 
     return 0;
 };
-
-
 
 // bool sock_valid(SOCKET socket) {
 //     return socket != INVALID_SOCKET;

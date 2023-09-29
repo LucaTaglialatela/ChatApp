@@ -1,24 +1,104 @@
 #include <iostream>
-#include <winsock2.h>
+// #include <winsock2.h>
 #include <Ws2tcpip.h>
 
 #include <thread>
-#include <string>
 #include <mutex>
 #include <unordered_map>
 
 #include "sock_util.h"
+#include "chat_server.h"
 
 #define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT "3490"
-#define HANDSHAKE_MSG "HELLO-FROM"
 
-std::string bufToString(const char *source, size_t len) {
-    std::string str(source, len - 1);
-    return str;
+// Global map <username -> socket id>
+std::unordered_map<std::string, int> userToSocket;
+int currentUsers {0};
+std::mutex mtx;
+
+enum Options { login, get_users };
+std::unordered_map<std::string, Options> getOption {
+    {"login", login},
+    {"users", get_users}
 };
 
-void handleClient(SOCKET sock) {
+void sendMsg(SOCKET sock, const char *msg) {
+    size_t msgLen {strlen(msg)};
+    int status = send(sock, msg, msgLen, 0);
+    if (status == SOCKET_ERROR) {
+        std::cerr << "send failed: " << WSAGetLastError() << std::endl;
+    }
+};
+
+std::string getOnlineUsers() {
+    std::string usersList {"Currently online:\n"};
+    for (auto user: userToSocket) {
+        usersList += (user.first + ": " + std::to_string(user.second) + "\n");
+    }
+    return usersList;
+};
+
+bool isOnlineUser(std::string username) {
+    return !(userToSocket.find(username) == userToSocket.end());
+}
+
+/* User commands:
+**  !login: Sent on login by new user
+**  !users: Display list of online users.
+**  !quit: Quit the application (client only).
+**  @username msg: Send a message to user with username username.
+*/
+
+std::tuple<char, std::string, std::string> parseMsg(const char *buf, size_t len) {
+    // Extract command prefix (either ! or @)
+    char prefix = buf[0];
+    // Convert remainder of buf to string
+    std::string str(buf, len);
+    // Extract command option (excl. prefix)
+    std::string option = str.substr(1, str.find(' ') - 1);
+    // Extract remainder of message
+    std::string data = str.substr(str.find(' ') + 1);
+
+    return {prefix, option, data};
+};
+
+void handleClient(SOCKET sock, std::string username) {
+    int status;
+    char recvbuf[DEFAULT_BUFLEN];
+    int recvbuflen {DEFAULT_BUFLEN};
+    while (status = recv(sock, recvbuf, recvbuflen, 0) > 0) {
+        auto parsed = parseMsg(recvbuf, status);
+        const char *sendbuf;
+        if (std::get<0>(parsed) == '@') {
+            std::string recipient {std::get<1>(parsed)};
+            if (isOnlineUser(recipient)) {
+                SOCKET dest = userToSocket[recipient];
+                sendbuf = (username + ": " + std::get<2>(parsed) + "\n").c_str();
+                sendMsg(dest, sendbuf);
+            }
+            else {
+                sendbuf = (recipient + " is currently not online.\n").c_str();
+                sendMsg(sock, sendbuf);
+            }
+            
+        }
+        else if (std::get<0>(parsed) == '!') {
+            sendbuf = getOnlineUsers().c_str();
+            sendMsg(sock, sendbuf);
+        }
+        else {
+            sendbuf = "Invalid option.\n";
+            sendMsg(sock, sendbuf);
+        }
+
+    }
+
+    mtx.lock();
+    userToSocket.erase(username);
+    currentUsers--;
+    mtx.unlock();
+
     return;
 };
 
@@ -28,8 +108,6 @@ int main(int nargs, char **argv) {
     // const char* sendBuf;
     // bool invalidUsername = false, validUser = false;
     int status;
-    int currentUsers {0};
-    std::mutex mtx;
 
     // Initiate use of the Winsock DLL
     status = sock_init();
@@ -82,9 +160,7 @@ int main(int nargs, char **argv) {
         return 1;
     }
 
-    std::cout << "Listening for incoming connections." << std::endl;
-
-    std::unordered_map<std::string, int> connections;
+    std::cout << "Listening for incoming connections." << std::endl << std::endl;
     
     while (true) {
         int new_sock = accept(master_sock, NULL, NULL);
@@ -98,32 +174,28 @@ int main(int nargs, char **argv) {
             std::cerr << "recv failed: " << WSAGetLastError() << std::endl;
         }
         else {
-            std::cout.write(recvbuf, status) << std::endl;
-            username = bufToString(recvbuf, status).substr(strlen(HANDSHAKE_MSG) + 1);
-            std::cout << username << std::endl;
-            // connections[username] = new_sock;
-        }
-
-        // Send request accept message
-        const char *sendbuf = ("Welcome " + username).c_str();
-        size_t sendbuflen {strlen(sendbuf)};
-        status = send(new_sock, sendbuf, sendbuflen, 0);
-        if (status == SOCKET_ERROR) {
-            std::cerr << "send failed: " << WSAGetLastError() << std::endl;
+            // std::cout.write(recvbuf, status) << std::endl;
+            auto parsed = parseMsg(recvbuf, status);
+            username = std::get<2>(parsed);
         }
 
         /* recv return value:
             If no error occurs, recv returns the number of bytes received and the buffer pointed to by the buf parameter
             will contain this data received. If the connection has been gracefully closed, the return value is zero. */
 
-        // MAKE SURE TO DETACH NEW CLIENT SOCKET CONNECTION HANDLER ETC.
         mtx.lock();
+        userToSocket[username] = new_sock;
         currentUsers++;
         mtx.unlock();
 
-        // std::thread newUserThread(handleClient, new_sock);
-        // newUserThread.detach();
-        std::cout << currentUsers << std::endl;
+        std::cout << username << " (" << new_sock << ")" << " joined.\nCurrent no. users: " << currentUsers << std::endl << std::endl;
+
+        // Send login success message
+        const char *sendbuf = ("Welcome " + username).c_str();
+        sendMsg(new_sock, sendbuf);
+
+        std::thread newUserThread(handleClient, new_sock, username);
+        newUserThread.detach();
     }
 
     sock_close(master_sock);
