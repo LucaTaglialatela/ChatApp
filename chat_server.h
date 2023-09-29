@@ -4,11 +4,11 @@
 
 void sendMsg(SOCKET sock, const char *msg);
 
-std::tuple<char, std::string, std::string> parseMsg(const char *buf, size_t len);
-
-std::string getUsers();
+std::string getOnlineUsers();
 
 bool isOnlineUser(std::string username);
+
+std::tuple<char, std::string, std::string> parseMsg(const char *buf, size_t len);
 
 void handleClient(SOCKET sock, std::string username);
 

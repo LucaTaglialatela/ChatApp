@@ -11,14 +11,13 @@
 #define DEFAULT_PORT "3490"
 
 int main(int nargs, char **argv) {
-    struct addrinfo hints, *res;
     const char *IP {"127.0.0.1"};
     const char *PORT {DEFAULT_PORT};
-    int status;
     bool loggedIn {false};
     bool isStopped {false};
 
     // Initiate use of the Winsock DLL
+    int status;
     status = sock_init();
     if (status != 0) {
         std::cerr << "WSAStartup error code: " << status << std::endl;
@@ -26,11 +25,11 @@ int main(int nargs, char **argv) {
     }
 
     // Get server address information
+    struct addrinfo hints, *res;
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;        // IP-type (v4/v6) unspecified
-    hints.ai_socktype = SOCK_STREAM;    // Use TCP stream
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
-    // hints.ai_flags = AI_PASSIVE;        // Auto IP selection
     status = getaddrinfo("127.0.0.1", "3490", &hints, &res);
     if (status != 0) {
         std::cerr << "getaddrinfo error code: " << status << std::endl;
