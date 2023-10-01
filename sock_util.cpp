@@ -9,10 +9,13 @@ int sock_init() {
     return WSAStartup(MAKEWORD(2, 2), &wsaData);
 };
 
+int sock_quit() {
+    return WSACleanup();
+}
+
 int sock_close(SOCKET sock) {
     shutdown(sock, SD_BOTH);
-    closesocket(sock);
-    return WSACleanup();
+    return closesocket(sock);
 
     // int status { shutdown(sock, SD_BOTH) };
     // if (status == 0) { status = closesocket(sock); }

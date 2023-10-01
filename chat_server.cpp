@@ -17,7 +17,17 @@ std::unordered_map<std::string, int> userToSocket;
 int currentUsers {0};
 std::mutex mtx;
 
-// Sends message `msg` over socket `sock`
+void forward(std::string from, std::string to, std::string msg) {
+    if (isOnlineUser(to)) {
+        SOCKET dest = userToSocket[to];
+        sendMsg(dest, (from + ": " + msg + "\n").c_str());
+    }
+    else {
+        SOCKET src = userToSocket[from];
+        sendMsg(src, (to + " is currently not online.\n").c_str());
+    }
+};
+
 void sendMsg(SOCKET sock, const char *msg) {
     size_t msgLen {strlen(msg)};
     int status = send(sock, msg, msgLen, 0);
@@ -26,21 +36,18 @@ void sendMsg(SOCKET sock, const char *msg) {
     }
 };
 
-// Returns formatted list of online users
 std::string getOnlineUsers() {
     std::string usersList {"Currently online:\n"};
     for (auto user: userToSocket) {
-        usersList += (user.first + ": " + std::to_string(user.second) + "\n");
+        usersList += (user.first + "\n");
     }
     return usersList;
 };
 
-// Returns whether user `username` is online
 bool isOnlineUser(std::string username) {
     return !(userToSocket.find(username) == userToSocket.end());
 }
 
-// Parses the result of recv so it can be resolved
 std::tuple<char, std::string, std::string> parseMsg(const char *buf, size_t len) {
     // Extract command prefix (either ! or @)
     char prefix = buf[0];
@@ -54,7 +61,6 @@ std::tuple<char, std::string, std::string> parseMsg(const char *buf, size_t len)
     return {prefix, option, data};
 };
 
-// Maintains the connection with a client and resolves their requests
 void handleClient(SOCKET sock, std::string username) {
     int status;
     char recvbuf[DEFAULT_BUFLEN];
@@ -65,25 +71,15 @@ void handleClient(SOCKET sock, std::string username) {
         auto parsed = parseMsg(recvbuf, status);
         const char *sendbuf;
         if (std::get<0>(parsed) == '@') {
-            std::string recipient {std::get<1>(parsed)};
-            if (isOnlineUser(recipient)) {
-                SOCKET dest = userToSocket[recipient];
-                sendbuf = (username + ": " + std::get<2>(parsed) + "\n").c_str();
-                sendMsg(dest, sendbuf);
-            }
-            else {
-                sendbuf = (recipient + " is currently not online.\n").c_str();
-                sendMsg(sock, sendbuf);
-            }
-            
+            forward(username, std::get<1>(parsed), std::get<2>(parsed));
         }
         else if (std::get<0>(parsed) == '!') {
             sendbuf = getOnlineUsers().c_str();
             sendMsg(sock, sendbuf);
+            // !calculcate (sum)
         }
         else {
-            sendbuf = "Invalid option.\n";
-            sendMsg(sock, sendbuf);
+            sendMsg(sock, "Invalid option.\n");
         }
 
     }
@@ -94,6 +90,8 @@ void handleClient(SOCKET sock, std::string username) {
     mtx.unlock();
 
     std::cout << username << " (" << sock << ")" << " has disconnected.\nCurrent no. users: " << currentUsers << std::endl << std::endl;
+    
+    sock_close(sock);
 
     return;
 };
@@ -166,6 +164,13 @@ int main(int nargs, char **argv) {
             auto parsed = parseMsg(recvbuf, status);
             std::string username = std::get<2>(parsed);
 
+            // If username exists, reject login request
+            if (isOnlineUser(username)) {
+                sendMsg(new_sock, "DUPLICATE-USERNAME");
+                sock_close(new_sock);
+                continue;
+            }
+
             mtx.lock();
             userToSocket[username] = new_sock;
             currentUsers++;
@@ -184,6 +189,8 @@ int main(int nargs, char **argv) {
     }
 
     sock_close(master_sock);
+
+    sock_quit();
 
     return 0;
 }
