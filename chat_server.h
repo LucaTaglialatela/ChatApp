@@ -1,4 +1,8 @@
-#include <winsock2.h>
+#ifndef CHAT_SERVER_H
+#define CHAT_SERVER_H
+
+#include "sock_util.h"
+
 #include <tuple>
 #include <string>
 
@@ -20,3 +24,4 @@ std::tuple<char, std::string, std::string> parseMsg(const char *buf, size_t len)
 // Maintains the connection with a client and resolves their requests
 void handleClient(SOCKET sock, std::string username);
 
+#endif

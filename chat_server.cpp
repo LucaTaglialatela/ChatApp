@@ -1,12 +1,11 @@
+#include "chat_server.h"
+#include "sock_util.h"
+
 #include <iostream>
-#include <Ws2tcpip.h>
 
 #include <thread>
 #include <mutex>
 #include <unordered_map>
-
-#include "sock_util.h"
-#include "chat_server.h"
 
 #define DEFAULT_BUFLEN  512
 #define DEFAULT_PORT    "3490"
@@ -182,7 +181,7 @@ int main(int nargs, char **argv) {
             const char *sendbuf = ("Welcome " + username).c_str();
             sendMsg(new_sock, sendbuf);
 
-            // Start a thread for the new connection
+            // Start a thread for handling the new connection
             std::thread newUserThread(handleClient, new_sock, username);
             newUserThread.detach();
         }
